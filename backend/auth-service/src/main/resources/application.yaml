@@ -1,0 +1,60 @@
+﻿spring:
+  application:
+    name: auth-service
+  datasource:
+    url: ${AUTH_DB_URL:jdbc:postgresql://localhost:5432/payflow_auth}
+    username: ${AUTH_DB_USERNAME:postgres}
+    password: ${AUTH_DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+server:
+  port: ${SERVER_PORT:8081}
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:900000}
+  refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
+
+payflow:
+  internal:
+    # Blank disables /api/internal/** entirely. Set the same value on every
+    # service that calls it. This is a shared secret, not user authentication.
+    api-token: ${INTERNAL_API_TOKEN:}
+
+eureka:
+  client:
+    enabled: ${EUREKA_CLIENT_ENABLED:true}
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+    healthcheck:
+      enabled: true
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+logging:
+  structured:
+    format:
+      # ECS JSON, one object per line, so Filebeat can ship it to Elasticsearch
+      # without a grok pattern per service.
+      file: ecs

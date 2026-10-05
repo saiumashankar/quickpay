@@ -1,0 +1,111 @@
+name: QuickPay CI
+
+on:
+  push:
+    branches: [main, development]
+  pull_request:
+    branches: [main, development]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test services and frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate disposable service credentials
+        run: |
+          {
+            echo "AUTH_DB_PASSWORD=$(openssl rand -hex 32)"
+            echo "PAYMENT_DB_PASSWORD=$(openssl rand -hex 32)"
+            echo "JWT_SECRET=$(openssl rand -hex 32)"
+            echo "INTERNAL_API_TOKEN=$(openssl rand -hex 32)"
+          } >> "$GITHUB_ENV"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: |
+            backend/auth-service/pom.xml
+            backend/eureka-server/pom.xml
+            backend/notification-service/pom.xml
+            backend/payment-service/pom.xml
+
+      - name: Start auth test dependencies
+        run: docker compose -f backend/docker-compose.yml up -d --wait --wait-timeout 180 postgres-auth redis eureka
+
+      - name: Test backend services
+        run: |
+          mvn -B -f backend/eureka-server/pom.xml verify
+          mvn -B -f backend/auth-service/pom.xml verify
+          mvn -B -f backend/payment-service/pom.xml verify
+          mvn -B -f backend/notification-service/pom.xml verify
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+
+      - name: Check frontend types
+        run: npm run typecheck --prefix frontend
+
+      - name: Test frontend
+        run: npm test --prefix frontend
+
+      - name: Build frontend
+        run: npm run build --prefix frontend
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maven-test-results
+          path: backend/*/target/surefire-reports/
+          if-no-files-found: ignore
+
+      - name: Stop auth test dependencies
+        if: always()
+        run: docker compose -f backend/docker-compose.yml down
+
+  docker:
+    name: Build backend images
+    runs-on: ubuntu-latest
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: eureka-server
+            context: backend/eureka-server
+          - service: auth-service
+            context: backend/auth-service
+          - service: payment-service
+            context: backend/payment-service
+          - service: notification-service
+            context: backend/notification-service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.service }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          tags: quickpay-${{ matrix.service }}:ci
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}

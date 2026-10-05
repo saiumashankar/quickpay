@@ -1,0 +1,11 @@
+# Build artefacts
+target/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+*.log

@@ -1,0 +1,130 @@
+﻿spring:
+  application:
+    name: notification-service
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 1000ms
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP:notification-group}
+      auto-offset-reset: earliest
+      # Required for at-least-once. With auto-commit the offset advances before
+      # the record is handled, so a crash mid-send loses the event.
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      # Acknowledge each record once it is handled, not in batches, so one
+      # poison record cannot cause healthy records to be re-consumed.
+      ack-mode: record
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:notifications@payflow.dev}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+
+kafka:
+  topic:
+    payment-events: ${PAYMENT_EVENTS_TOPIC:payment.events}
+
+notification:
+  from: ${MAIL_FROM:notifications@payflow.dev}
+  # Each channel is disabled by omission rather than by a flag. An absent
+  # credential means the provider reports itself unconfigured and its messages
+  # are skipped, so a deployment can run with one channel and still start.
+  sms:
+    account-sid: ${TWILIO_ACCOUNT_SID:}
+    auth-token: ${TWILIO_AUTH_TOKEN:}
+    from-number: ${TWILIO_FROM:}
+  webhook:
+    # Shared secret merchants use to verify X-Payflow-Signature. Absent means no
+    # merchant webhooks are attempted at all.
+    secret: ${WEBHOOK_SIGNING_SECRET:}
+
+payflow:
+  internal:
+    # Shared secret for calling auth-service. Must match auth-service.
+    # Blank disables the lookup and notification-service uses the event address.
+    api-token: ${INTERNAL_API_TOKEN:}
+  preferences:
+    # Short because one of the cached fields is a consent decision.
+    # See PreferencesCache for why 15 minutes was wrong.
+    cache-ttl: ${PREFERENCES_CACHE_TTL:60s}
+
+spring.cloud.openfeign:
+  client:
+    config:
+      default:
+        # Bounds the call when the breaker cannot help, for example on the very
+        # first failure before the sliding window has enough samples.
+        connectTimeout: 1000
+        readTimeout: 1500
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      authService:
+        # A short window: the call is a local HTTP request inside compose, so a
+        # slow call means auth-service is unhealthy, not merely busy.
+        slidingWindowSize: 20
+        slidingWindowType: COUNT_BASED
+        minimumNumberOfCalls: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        # A 404 is a real answer, not an outage: the user was deleted. Treating
+        # it as a failure would open the breaker for every other user.
+        recordExceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - feign.RetryableException
+
+jwt:
+  secret: ${JWT_SECRET}
+
+server:
+  port: ${SERVER_PORT:8083}
+
+eureka:
+  client:
+    enabled: ${EUREKA_CLIENT_ENABLED:true}
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+    healthcheck:
+      enabled: true
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # prometheus is exposed so the delivery counters can be scraped. info
+        # stays because the build metadata is useful when correlating a spike
+        # with a deploy.
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+logging:
+  structured:
+    format:
+      # ECS JSON, one object per line, so the same Filebeat pipeline serves
+      # every service without a per service grok pattern.
+      file: ecs

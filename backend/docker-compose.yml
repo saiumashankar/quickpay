@@ -1,0 +1,220 @@
+name: payflow
+
+services:
+
+  postgres-auth:
+    image: postgres:17-alpine
+    container_name: payflow-postgres-auth
+    environment:
+      POSTGRES_DB: payflow_auth
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:?Set AUTH_DB_PASSWORD in the root .env file}
+    ports:
+      - "5432:5432"
+    volumes:
+      - auth-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d payflow_auth"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  postgres-payment:
+    image: postgres:17-alpine
+    container_name: payflow-postgres-payment
+    environment:
+      POSTGRES_DB: payflow_payment
+      POSTGRES_USER: payflow
+      POSTGRES_PASSWORD: ${PAYMENT_DB_PASSWORD:?Set PAYMENT_DB_PASSWORD in the root .env file}
+    ports:
+      - "5434:5432"
+    volumes:
+      - payment-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payflow -d payflow_payment"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: payflow-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  kafka:
+    image: apache/kafka:3.9.0
+    container_name: payflow-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 20s
+
+  kafka-init:
+    image: apache/kafka:3.9.0
+    container_name: payflow-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic payment.events --partitions 3 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic payment.events.DLT --partitions 3 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
+    restart: "no"
+
+  eureka:
+    build:
+      context: ./eureka-server
+    container_name: payflow-eureka
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8761/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: payflow-mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+  auth-service:
+    build:
+      context: ./auth-service
+    container_name: payflow-auth-service
+    ports:
+      - "8081:8081"
+    environment:
+      AUTH_DB_URL: jdbc:postgresql://postgres-auth:5432/payflow_auth
+      AUTH_DB_USERNAME: postgres
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:?Set AUTH_DB_PASSWORD in the root .env file}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the root .env file}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?Set INTERNAL_API_TOKEN in the root .env file}
+      EUREKA_URL: http://eureka:8761/eureka/
+      EUREKA_CLIENT_ENABLED: "true"
+    depends_on:
+      postgres-auth:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      eureka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8081/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  payment-service:
+    build:
+      context: ./payment-service
+    container_name: payflow-payment-service
+    ports:
+      - "8082:8082"
+    environment:
+      DB_URL: jdbc:postgresql://postgres-payment:5432/payflow_payment
+      DB_USERNAME: payflow
+      DB_PASSWORD: ${PAYMENT_DB_PASSWORD:?Set PAYMENT_DB_PASSWORD in the root .env file}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_URL: http://eureka:8761/eureka/
+      EUREKA_CLIENT_ENABLED: "true"
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the root .env file}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?Set INTERNAL_API_TOKEN in the root .env file}
+    depends_on:
+      postgres-payment:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      eureka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8082/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  notification-service:
+    build:
+      context: ./notification-service
+    container_name: payflow-notification-service
+    ports:
+      - "8083:8083"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_CONSUMER_GROUP: notification-group
+      PAYMENT_EVENTS_TOPIC: payment.events
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      EUREKA_URL: http://eureka:8761/eureka/
+      EUREKA_CLIENT_ENABLED: "true"
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the root .env file}
+      # Must match auth-service. Blank would disable the preference lookup and
+      # fall back to the address on the event.
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?Set INTERNAL_API_TOKEN in the root .env file}
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      MAIL_FROM: notifications@payflow.dev
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      eureka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8083/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+volumes:
+  auth-db:
+  payment-db:
+  kafka-data:

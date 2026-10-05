@@ -1,0 +1,43 @@
+# Build artefacts
+target/
+*.jar
+*.war
+*.class
+
+# IDE
+.idea/
+.junie/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+nbproject/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs and local state
+*.log
+logs/
+/.mvn/
+!mvnw
+!mvnw.cmd
+
+# Secrets and local overrides
+.env
+.env.*
+!.env.example
+application-local.yml
+application-local.yaml
+application-local.properties
+
+# Build output and local dependencies
+node_modules/
+dist/

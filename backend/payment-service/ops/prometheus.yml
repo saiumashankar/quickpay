@@ -1,0 +1,22 @@
+# Scrapes all three services. Targets are listed explicitly rather than
+# discovered so that a service which is down appears as a failed target instead
+# of quietly vanishing from the scrape list, which is the failure mode that
+# makes a dashboard look healthy while nothing is being collected.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: payflow
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - auth-service:8081
+          - payment-service:8082
+          - notification-service:8083
+        labels:
+          system: payflow
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

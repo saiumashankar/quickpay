@@ -1,0 +1,51 @@
+# Ships the ECS JSON each service writes into Elasticsearch.
+#
+# No grok patterns anywhere: the services log structured ECS, so every line is
+# already a JSON object with named fields. That is the reason for the
+# structured.format.file setting in each application.yaml. Parsing a human
+# formatted line with a grok pattern is the thing that silently stops matching
+# when someone changes a log message, and the failure looks like missing logs
+# rather than a broken pattern.
+filebeat.inputs:
+  - type: filestream
+    id: payflow-auth
+    enabled: true
+    paths:
+      - /var/log/payflow/auth/*.log
+    fields:
+      service.name: auth-service
+    fields_under_root: true
+
+  - type: filestream
+    id: payflow-payment
+    enabled: true
+    paths:
+      - /var/log/payflow/payment/*.log
+    fields:
+      service.name: payment-service
+    fields_under_root: true
+
+  - type: filestream
+    id: payflow-notification
+    enabled: true
+    paths:
+      - /var/log/payflow/notification/*.log
+    fields:
+      service.name: notification-service
+    fields_under_root: true
+
+processors:
+  # Adds the ECS fields Kibana expects for filtering and correlation, so the
+  # three services' logs can be searched side by side without each one having
+  # to invent its own field names.
+  - add_fields:
+      target: service
+      fields:
+        type: payflow
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  index: "payflow-%{[service.name]}-%{+yyyy.MM.dd}"
+
+setup.kibana:
+  host: "http://kibana:5601"

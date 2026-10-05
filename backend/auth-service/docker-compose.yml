@@ -1,0 +1,33 @@
+services:
+  auth-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: payflow_auth
+      POSTGRES_USER: payflow
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:?Set AUTH_DB_PASSWORD in the root .env file}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - auth_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payflow -d payflow_auth"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  auth_pg:
+  redis_data:
