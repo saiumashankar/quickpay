@@ -89,16 +89,16 @@ jobs:
         include:
           - service: eureka-server
             context: backend/eureka-server
-            file: Dockerfile
+            file: backend/eureka-server/Dockerfile
           - service: auth-service
             context: backend/auth-service
-            file: Dockerfile
+            file: backend/auth-service/Dockerfile
           - service: payment-service
             context: backend/payment-service
-            file: Dockerfile
+            file: backend/payment-service/Dockerfile
           - service: notification-service
             context: backend/notification-service
-            file: Dockerfile
+            file: backend/notification-service/Dockerfile
           - service: frontend
             context: .
             file: frontend/Dockerfile
