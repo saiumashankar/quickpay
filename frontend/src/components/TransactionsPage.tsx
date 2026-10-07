@@ -133,7 +133,7 @@ export function TransactionsPage({
                   <table className="transaction-table">
                     <thead>
                       <tr>
-                        <th>Recipient</th>
+                        <th>Activity</th>
                         <th>Reference</th>
                         <th>Date</th>
                         <th>Amount</th>
@@ -146,18 +146,23 @@ export function TransactionsPage({
                           <td>
                             <div className="recipient-cell">
                               <span className="recipient-avatar" aria-hidden="true">
-                                {payment.recipientHandle.replace(/[^a-z]/gi, '').slice(0, 2).toUpperCase() || 'QP'}
+                                {(payment.direction === 'RECEIVED' ? payment.senderHandle : payment.recipientHandle)
+                                  .replace(/[^a-z]/gi, '').slice(0, 2).toUpperCase() || 'QP'}
                               </span>
                               <span>
-                                <strong>{displayHandle(payment.recipientHandle)}</strong>
+                                <strong>
+                                  {payment.direction === 'RECEIVED'
+                                    ? `Received from ${displayHandle(payment.senderHandle)}`
+                                    : `Sent to ${displayHandle(payment.recipientHandle)}`}
+                                </strong>
                                 <small>{payment.description || 'Payment'}</small>
                               </span>
                             </div>
                           </td>
                           <td className="transaction-id">{payment.id}</td>
                           <td className="transaction-date">{new Date(payment.createdAt).toLocaleString()}</td>
-                          <td className={`transaction-amount ${payment.status === 'SUCCESS' ? 'received' : ''}`}>
-                            {formatAmount(payment.amount, payment.currency)}
+                          <td className={`transaction-amount ${payment.direction === 'RECEIVED' && payment.status === 'SUCCESS' ? 'received' : ''}`}>
+                            {payment.direction === 'RECEIVED' ? '+' : '−'}{formatAmount(payment.amount, payment.currency)}
                           </td>
                           <td><StatusBadge status={payment.status} /></td>
                         </tr>

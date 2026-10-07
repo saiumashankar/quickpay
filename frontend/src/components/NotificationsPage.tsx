@@ -362,24 +362,30 @@ export function NotificationsPage({
                 <div className="table-scroll">
                   <table className="transaction-table">
                     <thead>
-                      <tr><th>Recipient</th><th>Reference</th><th>Date</th><th>Amount</th><th>Status</th></tr>
+                      <tr><th>Activity</th><th>Reference</th><th>Date</th><th>Amount</th><th>Status</th></tr>
                     </thead>
                     <tbody>
                       {payments.map((item) => (
                         <tr key={item.id}>
                           <td>
                             <div className="recipient-cell">
-                              <span className="recipient-avatar">{initials(item.recipientHandle)}</span>
+                              <span className="recipient-avatar">
+                                {initials(item.direction === 'RECEIVED' ? item.senderHandle : item.recipientHandle)}
+                              </span>
                               <span>
-                                <strong>{displayHandle(item.recipientHandle)}</strong>
+                                <strong>
+                                  {item.direction === 'RECEIVED'
+                                    ? `Received from ${displayHandle(item.senderHandle)}`
+                                    : `Sent to ${displayHandle(item.recipientHandle)}`}
+                                </strong>
                                 <small>{item.description || 'Payment'}</small>
                               </span>
                             </div>
                           </td>
                           <td className="transaction-id">{item.id}</td>
                           <td className="transaction-date">{new Date(item.createdAt).toLocaleString()}</td>
-                          <td className={`transaction-amount ${item.status === 'SUCCESS' ? 'received' : ''}`}>
-                            {formatAmount(item.amount, item.currency)}
+                          <td className={`transaction-amount ${item.direction === 'RECEIVED' && item.status === 'SUCCESS' ? 'received' : ''}`}>
+                            {item.direction === 'RECEIVED' ? '+' : '−'}{formatAmount(item.amount, item.currency)}
                           </td>
                           <td><StatusBadge status={item.status} /></td>
                         </tr>

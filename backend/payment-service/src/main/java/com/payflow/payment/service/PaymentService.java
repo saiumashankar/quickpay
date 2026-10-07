@@ -180,6 +180,10 @@ public class PaymentService {
 
         requireCurrency(senderWallet, request.currency());
         requireCurrency(recipientWallet, request.currency());
+        if (!senderWallet.getCurrency().equalsIgnoreCase(recipientWallet.getCurrency())) {
+            throw new PaymentBadRequestException(
+                    "Sender and recipient wallets must use the same currency. No conversion is performed.");
+        }
 
         Payment payment = paymentRepository.save(new Payment(principal, request, canonicalHandle,
                 recipientOwner.ownerId().toString(), recipientOwner.email(), PaymentStatus.PENDING));
@@ -228,8 +232,11 @@ public class PaymentService {
         if (!"ADMIN".equals(principal.role()) && !principal.userId().equals(userId)) {
             throw new PaymentForbiddenException("Cannot view another user's payments");
         }
-        return paymentRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
-                .map(PaymentResponse::from)
+        List<Payment> activity = principal.userId().equals(userId)
+                ? paymentRepository.findActivityByOwnerId(principal.ownerId())
+                : paymentRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        return activity.stream()
+                .map(payment -> PaymentResponse.from(payment, principal.ownerId()))
                 .toList();
     }
 

@@ -160,12 +160,20 @@ export function DashboardPage({
                 <ul className="wallet-activity-list">
                   {recentPayments.map((payment) => (
                     <li key={payment.id}>
-                      <span className="activity-direction-icon" aria-hidden="true">↗</span>
+                      <span className="activity-direction-icon" aria-hidden="true">
+                        {payment.direction === 'RECEIVED' ? '↙' : '↗'}
+                      </span>
                       <span className="activity-recipient">
-                        <strong>{displayHandle(payment.recipientHandle)}</strong>
+                        <strong>
+                          {payment.direction === 'RECEIVED'
+                            ? `Money received from ${displayHandle(payment.senderHandle)}`
+                            : `Sent to ${displayHandle(payment.recipientHandle)}`}
+                        </strong>
                         <small>{payment.description || 'Payment'} · {new Date(payment.createdAt).toLocaleDateString()}</small>
                       </span>
-                      <span className="activity-amount">{formatAmount(payment.amount, payment.currency)}</span>
+                      <span className="activity-amount">
+                        {payment.direction === 'RECEIVED' ? '+' : '−'}{formatAmount(payment.amount, payment.currency)}
+                      </span>
                       <StatusBadge status={payment.status} />
                     </li>
                   ))}

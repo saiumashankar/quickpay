@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.payflow.payment.client.HandleOwner;
 import com.payflow.payment.dto.CreatePaymentRequest;
 import com.payflow.payment.dto.GatewayUserContext;
+import com.payflow.payment.dto.PaymentDirection;
 import com.payflow.payment.dto.PaymentResponse;
 import com.payflow.payment.entity.OutboxEvent;
 import com.payflow.payment.entity.Payment;
@@ -302,6 +303,25 @@ class PaymentServiceIdempotencyTest {
         assertThatThrownBy(() -> initiateWithinTransaction("key-fx", request()))
                 .isInstanceOf(PaymentBadRequestException.class)
                 .hasMessageContaining("No conversion");
+        assertThat(senderWallet.getBalance()).isEqualByComparingTo("1000.00");
+        assertThat(recipientWallet.getBalance()).isEqualByComparingTo("250.00");
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("a sender wallet with a different currency is rejected without moving money")
+    void senderCurrencyMismatchIsRejected() {
+        senderWallet = new Wallet(OWNER_ID, "asha", new BigDecimal("1000.00"), "EUR");
+        when(walletRepository.findAllByOwnerIdInForUpdate(any()))
+                .thenReturn(List.of(senderWallet, recipientWallet));
+        stubFirstTimeRequest();
+
+        assertThatThrownBy(() -> initiateWithinTransaction("key-fx", request()))
+                .isInstanceOf(PaymentBadRequestException.class)
+                .hasMessageContaining("cannot receive USD");
+        assertThat(senderWallet.getBalance()).isEqualByComparingTo("1000.00");
+        assertThat(recipientWallet.getBalance()).isEqualByComparingTo("250.00");
+        verify(paymentRepository, never()).save(any());
     }
 
     @Test
@@ -490,6 +510,24 @@ class PaymentServiceIdempotencyTest {
         assertThatThrownBy(() -> paymentService.getUserPayments(99L, caller))
                 .isInstanceOf(PaymentForbiddenException.class);
         verify(paymentRepository, never()).findByUserIdOrderByCreatedAtDesc(any());
+        verify(paymentRepository, never()).findActivityByOwnerId(anyString());
+    }
+
+    @Test
+    @DisplayName("a recipient sees successful incoming transfers in their activity")
+    void recipientActivityMarksIncomingTransfersAsReceived() {
+        Payment received = existingPayment(PaymentStatus.SUCCESS);
+        GatewayUserContext recipient = new GatewayUserContext(99L, RECIPIENT_OWNER_ID,
+                "USER", "merchant@payflow.dev", "merchant");
+        when(paymentRepository.findActivityByOwnerId(RECIPIENT_OWNER_ID)).thenReturn(List.of(received));
+
+        List<PaymentResponse> activity = paymentService.getUserPayments(99L, recipient);
+
+        assertThat(activity).hasSize(1);
+        assertThat(activity.get(0).direction()).isEqualTo(PaymentDirection.RECEIVED);
+        assertThat(activity.get(0).senderHandle()).isEqualTo("asha");
+        assertThat(activity.get(0).recipientHandle()).isEqualTo("merchant");
+        verify(paymentRepository).findActivityByOwnerId(RECIPIENT_OWNER_ID);
     }
 
     private Payment existingPayment(PaymentStatus status) {

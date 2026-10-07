@@ -14,13 +14,20 @@ public record PaymentResponse(
         BigDecimal amount,
         String currency,
         String recipientHandle,
+        PaymentDirection direction,
         String description,
         PaymentStatus status,
         Instant createdAt
 ) {
     public static PaymentResponse from(Payment payment) {
+        return from(payment, payment.getOwnerId());
+    }
+
+    public static PaymentResponse from(Payment payment, String viewerOwnerId) {
+        boolean received = payment.getRecipientOwnerId().equals(viewerOwnerId);
         return new PaymentResponse(payment.getId(), payment.getUserId(), payment.getSenderHandle(),
                 payment.getAmount(), payment.getCurrency(), payment.getRecipientHandle(),
+                received ? PaymentDirection.RECEIVED : PaymentDirection.SENT,
                 payment.getDescription(), payment.getStatus(), payment.getCreatedAt());
     }
 }

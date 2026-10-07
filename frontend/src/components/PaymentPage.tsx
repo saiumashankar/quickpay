@@ -354,7 +354,11 @@ export function PaymentPage({
                       {history.slice(0, 5).map((payment) => (
                         <li key={payment.id}>
                           <span className="history-main">
-                            <strong>{displayHandle(payment.recipientHandle)}</strong>
+                            <strong>
+                              {payment.direction === 'RECEIVED'
+                                ? `Received from ${displayHandle(payment.senderHandle)}`
+                                : `Sent to ${displayHandle(payment.recipientHandle)}`}
+                            </strong>
                             <small>{new Date(payment.createdAt).toLocaleString()}</small>
                           </span>
                           <span className="history-side">

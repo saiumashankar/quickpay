@@ -58,6 +58,8 @@ export interface PaymentResponse {
   currency: string
   /** The recipient's handle, not an email or an account number. */
   recipientHandle: string
+  /** Whether this account sent or received the transfer. */
+  direction: 'SENT' | 'RECEIVED'
   description: string | null
   status: PaymentStatus
   createdAt: string
