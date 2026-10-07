@@ -89,12 +89,19 @@ jobs:
         include:
           - service: eureka-server
             context: backend/eureka-server
+            file: Dockerfile
           - service: auth-service
             context: backend/auth-service
+            file: Dockerfile
           - service: payment-service
             context: backend/payment-service
+            file: Dockerfile
           - service: notification-service
             context: backend/notification-service
+            file: Dockerfile
+          - service: frontend
+            context: .
+            file: frontend/Dockerfile
 
     steps:
       - uses: actions/checkout@v4
@@ -105,7 +112,9 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
           push: false
           tags: quickpay-${{ matrix.service }}:ci
+          build-args: VITE_SHOW_DELIVERED_INBOX=false
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}

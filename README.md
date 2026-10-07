@@ -193,6 +193,15 @@ Copy-Item .env.example .env
 
 Open `.env` and set all four values before running Compose.
 
+### Azure demo deployment
+
+The production frontend container serves the built React app and reverse-proxies API
+calls through Nginx. To deploy the whole stack to an Ubuntu Azure VM, including private
+databases, Redis, Kafka, and SMTP-backed notifications, follow
+[`deploy/azure/README.md`](deploy/azure/README.md). This single-VM setup is for
+demonstrations only; it has no managed backups or high availability and does not
+process real payments.
+
 | Service | URL |
 |---|---|
 | auth-service | http://localhost:8081 |

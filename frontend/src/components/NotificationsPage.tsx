@@ -21,6 +21,8 @@ import type {
 import { StatusBadge } from './StatusBadge'
 import { ProfileMenu } from './ProfileMenu'
 
+const showDeliveredInbox = import.meta.env.VITE_SHOW_DELIVERED_INBOX !== 'false'
+
 interface NotificationsPageProps {
   token: string
   user: UserResponse
@@ -74,7 +76,7 @@ export function NotificationsPage({
 }: NotificationsPageProps) {
   const [messages, setMessages] = useState<MailpitMessage[]>([])
   const [mailError, setMailError] = useState('')
-  const [mailLoading, setMailLoading] = useState(true)
+  const [mailLoading, setMailLoading] = useState(showDeliveredInbox)
 
   const [payments, setPayments] = useState<PaymentResponse[]>([])
   const [paymentsError, setPaymentsError] = useState('')
@@ -87,6 +89,7 @@ export function NotificationsPage({
   const [testStatus, setTestStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
 
   const loadMail = useCallback(async () => {
+    if (!showDeliveredInbox) return
     setMailLoading(true)
     try {
       const listing = await listMailpitMessages()
@@ -100,7 +103,7 @@ export function NotificationsPage({
   }, [])
 
   useEffect(() => {
-    void loadMail()
+    if (showDeliveredInbox) void loadMail()
   }, [loadMail])
 
   useEffect(() => {
@@ -137,7 +140,7 @@ export function NotificationsPage({
   // The Kafka consumer is asynchronous, so a freshly sent receipt may not have arrived
   // by the time this page mounts. A short retry covers that gap.
   useEffect(() => {
-    if (messages.length > 0) return
+    if (!showDeliveredInbox || messages.length > 0) return
     const timer = setTimeout(() => void loadMail(), 2500)
     return () => clearTimeout(timer)
   }, [messages.length, loadMail])
@@ -212,7 +215,9 @@ export function NotificationsPage({
                     <button type="button" className="text-link" onClick={onPayAgain}>
                       Make another payment <span aria-hidden="true">↩</span>
                     </button></>
-                  : <>Manage email receipts and review delivered messages for {user.email}.</>}
+                  : showDeliveredInbox
+                    ? <>Manage email receipts and review delivered messages for {user.email}.</>
+                    : <>Manage email receipt preferences for {user.email}.</>}
               </p>
             </div>
 
@@ -240,7 +245,7 @@ export function NotificationsPage({
             </section>}
 
             <section className="notify-grid">
-              <article className="panel-card notify-card">
+              {showDeliveredInbox && <article className="panel-card notify-card">
                 <div className="panel-heading">
                   <div><h3>Inbox</h3><p>Receipts delivered to your email</p></div>
                   <button type="button" className="btn-action" onClick={() => void loadMail()}>
@@ -276,7 +281,7 @@ export function NotificationsPage({
                     ))}
                   </ul>
                 )}
-              </article>
+              </article>}
 
               <article className="panel-card notify-card">
                 <div className="panel-heading">

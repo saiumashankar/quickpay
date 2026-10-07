@@ -1,0 +1,82 @@
+services:
+  frontend:
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_SHOW_DELIVERED_INBOX: "false"
+    container_name: payflow-frontend
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  postgres-auth:
+    container_name: !reset null
+    ports: !override []
+    restart: unless-stopped
+
+  postgres-payment:
+    container_name: !reset null
+    ports: !override []
+    restart: unless-stopped
+
+  redis:
+    container_name: !reset null
+    ports: !override []
+    restart: unless-stopped
+
+  kafka:
+    container_name: !reset null
+    ports: !override []
+    environment:
+      KAFKA_HEAP_OPTS: -Xms256M -Xmx768M
+    restart: unless-stopped
+
+  kafka-init:
+    container_name: !reset null
+
+  eureka:
+    container_name: !reset null
+    ports: !override []
+    environment:
+      JAVA_TOOL_OPTIONS: -Xms64m -Xmx384m
+    restart: unless-stopped
+
+  mailpit:
+    container_name: !reset null
+    ports: !override []
+    restart: unless-stopped
+
+  auth-service:
+    container_name: !reset null
+    ports: !override []
+    environment:
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx768m
+    restart: unless-stopped
+
+  payment-service:
+    container_name: !reset null
+    ports: !override []
+    environment:
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx768m
+    restart: unless-stopped
+
+  notification-service:
+    container_name: !reset null
+    ports: !override []
+    restart: unless-stopped
+    environment:
+      JAVA_TOOL_OPTIONS: -Xms128m -Xmx512m
+      MAIL_HOST: ${MAIL_HOST:?Set MAIL_HOST to your SMTP provider}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:?Set MAIL_USERNAME to your SMTP username}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:?Set MAIL_PASSWORD to your SMTP password}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-true}
+      MAIL_SMTP_STARTTLS: ${MAIL_SMTP_STARTTLS:-true}
+      MAIL_FROM: ${MAIL_FROM:?Set MAIL_FROM to a verified sender address}
