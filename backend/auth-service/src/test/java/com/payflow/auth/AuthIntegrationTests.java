@@ -55,7 +55,7 @@ class AuthIntegrationTests {
     @Test
     void registrationLoginAndJwtProtectedProfileWork() throws Exception {
         Map<String, String> registration = Map.of(
-                "username", "integration-user",
+                "username", "integrationuser",
                 "email", "integration@example.com",
                 "password", "strong-password-123");
         ResponseEntity<String> registered = http.postForEntity("/api/auth/register", registration, String.class);
@@ -79,7 +79,7 @@ class AuthIntegrationTests {
     @Test
     void rejectsDuplicateRegistration() {
         Map<String, String> registration = Map.of(
-                "username", "duplicate-user",
+                "username", "duplicateuser",
                 "email", "duplicate@example.com",
                 "password", "strong-password-123");
         http.postForEntity("/api/auth/register", registration, String.class);
